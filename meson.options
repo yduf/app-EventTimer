@@ -1,0 +1,20 @@
+option(
+  'slint_dir',
+  type: 'string',
+  value: '',
+  description: 'Directory of an unpacked Slint C++ binary package (empty uses subprojects/slint-cpp)',
+)
+
+option(
+  'myfunc_dir',
+  type: 'string',
+  value: '',
+  description: 'Directory containing myFunc/doctest.h (empty disables the unit tests)',
+)
+
+option(
+  'tests',
+  type: 'boolean',
+  value: true,
+  description: 'Build the doctest unit tests',
+)

@@ -1,0 +1,242 @@
+import { Button, LineEdit, SpinBox } from "std-widgets.slint";
+
+component Stepper inherits VerticalLayout {
+    in property <string> label;
+    in property <int> maximum;
+    in property <bool> enabled: true;
+    in-out property <int> value;
+
+    spacing: 6px;
+
+    Text {
+        text: root.label;
+        color: #6b7280;
+        font-size: 12px;
+        horizontal-alignment: center;
+    }
+
+    SpinBox {
+        value <=> root.value;
+        minimum: 0;
+        maximum: root.maximum;
+        enabled: root.enabled;
+    }
+}
+
+export component AppWindow inherits Window {
+    title: "Event Timer";
+    preferred-width: 440px;
+    preferred-height: 560px;
+    background: #f3f4f6;
+
+    in-out property <int> hours: 0;
+    in-out property <int> minutes: 5;
+    in-out property <int> seconds: 0;
+    in-out property <string> event-key: "";
+    in-out property <string> remaining-text: "00:00:00";
+    in-out property <string> status-text: "Ready";
+    in-out property <bool> running: false;
+    in-out property <bool> started: false;
+    in-out property <bool> can-start: false;
+    in-out property <bool> expired: false;
+
+    callback start-pause();
+    callback reset();
+    callback dismiss-expired();
+    callback duration-changed(int, int, int);
+
+    property <bool> editable: !started && !expired;
+
+    changed hours => {
+        root.duration-changed(root.hours, root.minutes, root.seconds);
+    }
+
+    changed minutes => {
+        root.duration-changed(root.hours, root.minutes, root.seconds);
+    }
+
+    changed seconds => {
+        root.duration-changed(root.hours, root.minutes, root.seconds);
+    }
+
+    forward-focus: keys;
+
+    keys := FocusScope {
+        key-pressed(event) => {
+            if (root.expired) {
+                if (event.text == "\n" || event.text == "\u{1b}" || event.text == " ") {
+                    root.dismiss-expired();
+                    return accept;
+                }
+                return reject;
+            }
+            if (event.text == " ") {
+                if (root.running || root.can-start) {
+                    root.start-pause();
+                    return accept;
+                }
+                return reject;
+            }
+            if (event.text == "r" || event.text == "R") {
+                if (root.started || root.expired) {
+                    root.reset();
+                    return accept;
+                }
+                return reject;
+            }
+            return reject;
+        }
+    }
+
+    VerticalLayout {
+        padding: 24px;
+        spacing: 18px;
+
+        Text {
+            text: "Event Timer";
+            font-size: 20px;
+            font-weight: 600;
+            color: #111827;
+        }
+
+        Rectangle {
+            height: 132px;
+            background: #111827;
+            border-radius: 12px;
+
+            VerticalLayout {
+                alignment: center;
+                spacing: 4px;
+
+                Text {
+                    text: root.remaining-text;
+                    font-size: 56px;
+                    font-weight: 600;
+                    font-family: "monospace";
+                    color: #f9fafb;
+                    horizontal-alignment: center;
+                }
+
+                Text {
+                    text: root.status-text;
+                    font-size: 13px;
+                    color: #9ca3af;
+                    horizontal-alignment: center;
+                }
+            }
+        }
+
+        HorizontalLayout {
+            spacing: 12px;
+
+            Stepper {
+                label: "Hours";
+                maximum: 23;
+                value <=> root.hours;
+                enabled: root.editable;
+            }
+
+            Stepper {
+                label: "Minutes";
+                maximum: 59;
+                value <=> root.minutes;
+                enabled: root.editable;
+            }
+
+            Stepper {
+                label: "Seconds";
+                maximum: 59;
+                value <=> root.seconds;
+                enabled: root.editable;
+            }
+        }
+
+        VerticalLayout {
+            spacing: 6px;
+
+            Text {
+                text: "Event key";
+                font-size: 12px;
+                color: #6b7280;
+            }
+
+            LineEdit {
+                text <=> root.event-key;
+                enabled: root.editable;
+                placeholder-text: "key sent to the system when the timer expires";
+            }
+        }
+
+        HorizontalLayout {
+            spacing: 12px;
+
+            Button {
+                text: root.running ? "Pause" : "Start";
+                primary: true;
+                enabled: root.running || root.can-start;
+                clicked => {
+                    root.start-pause();
+                }
+            }
+
+            Button {
+                text: "Reset";
+                enabled: root.started || root.expired;
+                clicked => {
+                    root.reset();
+                }
+            }
+        }
+    }
+
+    if root.expired: Rectangle {
+        x: 0;
+        y: 0;
+        width: 100%;
+        height: 100%;
+        background: #0b0f1999;
+
+        TouchArea {
+        }
+
+        Rectangle {
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            width: 340px;
+            height: content.preferred-height;
+            background: #ffffff;
+            border-radius: 12px;
+            drop-shadow-blur: 24px;
+            drop-shadow-color: #00000040;
+
+            content := VerticalLayout {
+                padding: 24px;
+                spacing: 16px;
+
+                Text {
+                    text: "Timer expired";
+                    font-size: 22px;
+                    font-weight: 700;
+                    color: #111827;
+                    horizontal-alignment: center;
+                }
+
+                Text {
+                    text: root.event-key == "" ? "(no event key)" : root.event-key;
+                    font-size: 16px;
+                    color: #374151;
+                    horizontal-alignment: center;
+                    wrap: word-wrap;
+                }
+
+                Button {
+                    text: "OK";
+                    primary: true;
+                    clicked => {
+                        root.dismiss-expired();
+                    }
+                }
+            }
+        }
+    }
+}
