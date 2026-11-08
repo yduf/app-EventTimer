@@ -2,4 +2,3 @@ build/
 subprojects/slint-cpp/
 subprojects/packagecache/
 .notes/
-.vscode/
