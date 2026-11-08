@@ -1,4 +1,4 @@
-import { Button, LineEdit, SpinBox } from "std-widgets.slint";
+import { Button, SpinBox } from "std-widgets.slint";
 
 component Stepper inherits VerticalLayout {
     in property <string> label;
@@ -26,7 +26,7 @@ component Stepper inherits VerticalLayout {
 export component AppWindow inherits Window {
     title: "Event Timer";
     preferred-width: 440px;
-    preferred-height: 560px;
+    preferred-height: 660px;
     background: #f3f4f6;
 
     in-out property <int> hours: 0;
@@ -39,13 +39,32 @@ export component AppWindow inherits Window {
     in-out property <bool> started: false;
     in-out property <bool> can-start: false;
     in-out property <bool> expired: false;
+    in-out property <bool> recording: false;
+    in-out property <string> send-status: "";
+    in-out property <string> target-name: "";
+    in-out property <string> target-status: "";
+    in-out property <bool> picking: false;
 
     callback start-pause();
     callback reset();
     callback dismiss-expired();
     callback duration-changed(int, int, int);
+    callback record-key(string, bool, bool, bool, bool);
+    callback pick-target();
 
     property <bool> editable: !started && !expired;
+
+    function is-modifier-key(text: string) -> bool {
+        return text == Key.Shift
+            || text == Key.ShiftR
+            || text == Key.Control
+            || text == Key.ControlR
+            || text == Key.Alt
+            || text == Key.AltGr
+            || text == Key.Meta
+            || text == Key.MetaR
+            || text == Key.CapsLock;
+    }
 
     changed hours => {
         root.duration-changed(root.hours, root.minutes, root.seconds);
@@ -59,6 +78,12 @@ export component AppWindow inherits Window {
         root.duration-changed(root.hours, root.minutes, root.seconds);
     }
 
+    changed expired => {
+        if (root.expired) {
+            root.recording = false;
+        }
+    }
+
     forward-focus: keys;
 
     keys := FocusScope {
@@ -69,6 +94,21 @@ export component AppWindow inherits Window {
                     return accept;
                 }
                 return reject;
+            }
+            if (root.picking) {
+                return reject;
+            }
+            if (root.recording) {
+                if (event.text == "\u{1b}") {
+                    root.recording = false;
+                    return accept;
+                }
+                if (root.is-modifier-key(event.text)) {
+                    return accept;
+                }
+                root.record-key(event.text, event.modifiers.alt, event.modifiers.control, event.modifiers.shift, event.modifiers.meta);
+                root.recording = false;
+                return accept;
             }
             if (event.text == " ") {
                 if (root.running || root.can-start) {
@@ -133,21 +173,21 @@ export component AppWindow inherits Window {
                 label: "Hours";
                 maximum: 23;
                 value <=> root.hours;
-                enabled: root.editable;
+                enabled: root.editable && !root.recording && !root.picking;
             }
 
             Stepper {
                 label: "Minutes";
                 maximum: 59;
                 value <=> root.minutes;
-                enabled: root.editable;
+                enabled: root.editable && !root.recording && !root.picking;
             }
 
             Stepper {
                 label: "Seconds";
                 maximum: 59;
                 value <=> root.seconds;
-                enabled: root.editable;
+                enabled: root.editable && !root.recording && !root.picking;
             }
         }
 
@@ -160,10 +200,101 @@ export component AppWindow inherits Window {
                 color: #6b7280;
             }
 
-            LineEdit {
-                text <=> root.event-key;
-                enabled: root.editable;
-                placeholder-text: "key sent to the system when the timer expires";
+            HorizontalLayout {
+                spacing: 8px;
+
+                Rectangle {
+                    horizontal-stretch: 1;
+                    vertical-stretch: 0;
+                    height: 34px;
+                    border-radius: 6px;
+                    border-width: 1px;
+                    border-color: root.recording ? #2563eb : #d1d5db;
+                    background: root.editable ? #ffffff : #e5e7eb;
+
+                    Text {
+                        x: 10px;
+                        y: 0;
+                        width: parent.width - 20px;
+                        height: parent.height;
+                        vertical-alignment: center;
+                        overflow: elide;
+                        font-size: 14px;
+                        color: root.event-key == "" ? #9ca3af : #111827;
+                        text: root.recording ? "Press a key combination…" : (root.event-key == "" ? "No event recorded" : root.event-key);
+                    }
+                }
+
+                Button {
+                    text: root.recording ? "Cancel" : "Record";
+                    enabled: root.editable && !root.picking;
+                    clicked => {
+                        if (root.recording) {
+                            root.recording = false;
+                        } else {
+                            root.recording = true;
+                            keys.focus();
+                        }
+                    }
+                }
+            }
+
+            Text {
+                height: 16px;
+                text: root.recording ? "Press the key combination to record. Esc cancels." : "";
+                font-size: 12px;
+                color: #2563eb;
+            }
+        }
+
+        VerticalLayout {
+            spacing: 6px;
+
+            Text {
+                text: "Target application";
+                font-size: 12px;
+                color: #6b7280;
+            }
+
+            HorizontalLayout {
+                spacing: 8px;
+
+                Rectangle {
+                    horizontal-stretch: 1;
+                    vertical-stretch: 0;
+                    height: 34px;
+                    border-radius: 6px;
+                    border-width: 1px;
+                    border-color: root.picking ? #2563eb : #d1d5db;
+                    background: root.editable ? #ffffff : #e5e7eb;
+
+                    Text {
+                        x: 10px;
+                        y: 0;
+                        width: parent.width - 20px;
+                        height: parent.height;
+                        vertical-alignment: center;
+                        overflow: elide;
+                        font-size: 14px;
+                        color: root.target-name == "" ? #9ca3af : #111827;
+                        text: root.picking ? "Click on the target window…" : (root.target-name == "" ? "No target (focused window)" : root.target-name);
+                    }
+                }
+
+                Button {
+                    text: root.picking ? "Picking…" : "Pick";
+                    enabled: root.editable && !root.recording && !root.picking;
+                    clicked => {
+                        root.pick-target();
+                    }
+                }
+            }
+
+            Text {
+                height: 16px;
+                text: root.picking ? "Click the target window. Esc cancels." : root.target-status;
+                font-size: 12px;
+                color: root.picking ? #2563eb : #b91c1c;
             }
         }
 
@@ -173,7 +304,7 @@ export component AppWindow inherits Window {
             Button {
                 text: root.running ? "Pause" : "Start";
                 primary: true;
-                enabled: root.running || root.can-start;
+                enabled: (root.running || root.can-start) && !root.recording && !root.picking;
                 clicked => {
                     root.start-pause();
                 }
@@ -181,7 +312,7 @@ export component AppWindow inherits Window {
 
             Button {
                 text: "Reset";
-                enabled: root.started || root.expired;
+                enabled: (root.started || root.expired) && !root.recording && !root.picking;
                 clicked => {
                     root.reset();
                 }
@@ -225,6 +356,15 @@ export component AppWindow inherits Window {
                     text: root.event-key == "" ? "(no event key)" : root.event-key;
                     font-size: 16px;
                     color: #374151;
+                    horizontal-alignment: center;
+                    wrap: word-wrap;
+                }
+
+                Text {
+                    text: root.send-status;
+                    visible: root.send-status != "";
+                    font-size: 14px;
+                    color: #6b7280;
                     horizontal-alignment: center;
                     wrap: word-wrap;
                 }

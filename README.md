@@ -6,20 +6,50 @@ A small countdown timer with a native UI, written in C++20 with
 ## Features
 
 - Set a duration with hours / minutes / seconds steppers (0-23, 0-59, 0-59).
-- Enter an event key that will later be sent to the system when the timer expires.
+- Record an event key combination with the `Record` button: the next key press is
+  stored and shown as e.g. `Ctrl+Shift+A`, `Alt+F1` or `Space`.
+- Pick a target application with the `Pick` button: the next window you click
+  becomes the destination for the event. The target is saved to the user
+  configuration and restored on startup.
+- The recorded event is saved to the user configuration and restored on startup.
 - Start, pause, resume and reset the countdown.
 - Remaining time is displayed as `HH:MM:SS` and updated every second.
-- When the countdown reaches zero, a modal dialog shows the event key.
+- When the countdown reaches zero, the recorded event is sent with `xdotool` and a
+  modal dialog confirms what happened.
 
-Sending the event key to the system is out of scope for this story: the key is
-only captured and displayed.
+Event sending is currently X11-only and requires `xdotool` in `PATH`. Without a
+target, the event goes to the focused window; if Event Timer itself is focused,
+sending is skipped so the injected key does not hit the timer's own modal. With a
+target, the event is sent directly to that window, even when Event Timer has focus.
+
+Sending directly to a target window is useful for applications such as OBS, whose
+global hotkeys use XInput2 raw key events that `xdotool` XTEST events do not
+trigger while the application is unfocused. Native Wayland sessions are not
+supported.
+
+## Configuration
+
+The recorded event and the optional target application are stored in:
+
+```
+$XDG_CONFIG_HOME/event-timer/config.json
+```
+
+or `~/.config/event-timer/config.json` when `XDG_CONFIG_HOME` is unset. The target
+is stored by window class and title, so it is rediscovered when the application
+restarts.
 
 ## Prerequisites
 
 - A C++20 compiler (g++ 13 or newer, or clang 16 or newer)
 - meson >= 1.1 and ninja
 - ruby (standard library only) for the Slint download script
+- `xdotool` for sending the recorded event (X11 only)
+- X11 development headers (`libx11-dev` or equivalent) for the window picker
 - `myFunc/doctest.h` for the unit tests (optional, tests are skipped when absent)
+
+`nlohmann/json` is pulled in automatically as a meson subproject
+(`subprojects/nlohmann_json.wrap`).
 
 ## Slint
 
@@ -61,15 +91,26 @@ meson test -C build
 ```
 
 Unit tests cover the countdown logic (formatting, ticking, pause/resume, reset and
-expiry). The doctest header is looked up in `-Dmyfunc_dir` (default
-`/home/yves/DEV/cpp`); set `-Dtests=false` to skip the test target entirely.
+expiry), the event model (key conversion, display, xdotool sequences, JSON round
+trip) and config persistence (event, target window and both together). The doctest
+header is looked up in `-Dmyfunc_dir` (empty by default, which disables the unit
+tests); set `-Dtests=false` to skip the test targets entirely.
 
 ## Layout
 
 ```
-ui/app.slint              Slint UI description
-src/main.cc               wiring between the UI and the timer logic
+ui/app.slint                Slint UI description
+src/main.cc                 wiring between the UI, timer, config, picker and sender
 src/countdown_timer.hh/.cc  countdown state machine (steady_clock based)
+src/event_key.hh/.cc        recorded event model, display and xdotool mapping
+src/target_window.hh/.cc    target application model and JSON serialization
+src/config.hh/.cc           XDG JSON configuration load/save
+src/key_sender.hh/.cc       xdotool event injection (focused or target window)
+src/x11_window.hh/.cc       X11 window lookup and metadata helpers
+src/window_picker.hh/.cc    interactive target window picker
 src/countdown_timer_test.cc doctest unit tests
-scripts/fetch_slint.rb    Slint C++ binary package downloader
+src/event_key_test.cc       doctest unit tests
+src/target_window_test.cc   doctest unit tests
+src/config_test.cc          doctest unit tests
+scripts/fetch_slint.rb      Slint C++ binary package downloader
 ```

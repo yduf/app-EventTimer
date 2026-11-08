@@ -1,4 +1,6 @@
 build/
 subprojects/slint-cpp/
+subprojects/nlohmann_json/
 subprojects/packagecache/
+subprojects/.wraplock
 .notes/

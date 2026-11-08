@@ -1,7 +1,7 @@
 ---
 task: 01
 title:  Implement basic functionality
-status: todo
+status: done
 ---
 
 Create a simple count down timer app with native UI.
