@@ -3,6 +3,8 @@
 A small countdown timer with a native UI, written in C++20 with
 [Slint](https://slint.dev) and built with meson.
 
+![screenshot](doc/2026-11-08_19-36-screenshot.png)
+
 ## Features
 
 - Set a duration with hours / minutes / seconds steppers (0-23, 0-59, 0-59).
